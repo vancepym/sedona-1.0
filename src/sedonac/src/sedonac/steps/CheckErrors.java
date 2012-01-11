@@ -249,11 +249,14 @@ public class CheckErrors
       err("Unsupported type '" + f.type + "' for define field", f.loc);
     
     if (f.init != null && !f.type.isArray())
-    {
+    { 
+      // Check for init type compatibility (coercing null to correct type as needed)
       // NOTE: array type checking is done in checkFieldInit
-      if (!f.type.equals(f.init.type))
-        err("Define field '" + f.name + "' has type '" + f.type + "', but is initialized with expression of type '" + f.init.type + "'", f.loc);        
+      if (!f.type.equals(f.init.type) && !f.init.isNullLiteral(f.type))
+        err("Define field '" + f.name + "' has type '" + f.type + 
+                 "', but is initialized with expression of type '" + f.init.type + "'", f.loc); 
     }
+
   }                       
   
   private boolean isValidDefineType(Type t)

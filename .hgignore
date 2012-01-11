@@ -21,6 +21,7 @@ bin/svm
 *.project
 *.settings
 
+*.iml
 syntax: regexp
 
 ^manifests/

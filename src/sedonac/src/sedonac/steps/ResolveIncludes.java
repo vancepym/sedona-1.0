@@ -81,9 +81,13 @@ public class ResolveIncludes
    */
   private void autoInclude(IncludeDef include)
   {
-    Iterator types = include.typeToSource.keySet().iterator();
-    while (types.hasNext())
-      recursivelyAutoInclude(include, (String)types.next());
+    // Get list of type names in this <include> element
+    Collection typeNameSet = include.typeToSource.keySet();
+    String[] typeNames = (String[])typeNameSet.toArray( new String[typeNameSet.size()] );
+
+    // For each type, check for dependencies on other types and auto-include them
+    for (int j=0; j<typeNames.length; ++j)
+      recursivelyAutoInclude(include, typeNames[j]);
   }
   
   private void recursivelyAutoInclude(IncludeDef include, final String typeName)
@@ -91,7 +95,6 @@ public class ResolveIncludes
     Type type = include.sourceKit.type(typeName);
     if (type == null) return; // We'll catch this error later
     Type base = type.base();
-    
     int colon = -1;
     String baseKit = base.qname().substring(0, colon = base.qname().indexOf(':'));
     String baseTypeName = base.qname().substring(colon+2);

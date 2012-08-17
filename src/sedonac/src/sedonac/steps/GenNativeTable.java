@@ -70,6 +70,9 @@ public class GenNativeTable
     out.w("#include \"sedona.h\"").nl();
     out.nl();
 
+    // If building sim SVM, keep track of whether we created a platform ID method stub
+    boolean foundPlatformIdNative = false;    
+
     // process each kit
     for (int i=0; i<nativeKits.length; ++i)
     {
@@ -80,7 +83,7 @@ public class GenNativeTable
       // If building sim SVM, create file containing stubs for all natives 
       //  not supplied in source
       if (compiler.sim)
-        genNativeStubFile(kit);
+        foundPlatformIdNative = genNativeStubFile(kit) || foundPlatformIdNative;
 
 
       // header comment
@@ -107,6 +110,10 @@ public class GenNativeTable
       out.w("};").nl();
       out.nl();
     }
+
+    // If building sim SVM, warn if we never created a platform ID method stub
+    if (compiler.sim && !foundPlatformIdNative)
+      log.warn(" No stub created that returns PLATFORM_ID."); 
 
 
     // native method table
@@ -160,11 +167,25 @@ public class GenNativeTable
 
 
   //
-  // Creates stub for given method.
+  // Returns true if stub was created for the native that returns platform ID;
+  // o/w returns false.
   //
-  private void stub(Printer out, IrMethod m)
+  private boolean stub(Printer out, IrMethod m)
   {
-    if (m == null) return;
+    if (m == null) return false;
+
+    //
+    // NOTE: If native method returning platform ID has different name, this code 
+    //       won't catch it; source code file with actual implementation will need to 
+    //       be provided by creator of sim SVM.  stub() returns this boolean so that 
+    //       calling function can issue warning if no "doPlatformId" method was created.
+    //
+    boolean isPlatformIdNative = ( m.name().compareTo("doPlatformId")==0 );
+
+
+    // Need to include sedonaPlatform.h to get defn of PLATFORM_ID
+    if ( isPlatformIdNative )
+      out.nl().w("#include \"sedonaPlatform.h\"").nl().nl();
 
     // Comment with method signature
     out.nl().w("// ").w(m.ret).w(" ").w(m.parent.name).w(".").w(m.name).w("(");
@@ -177,6 +198,7 @@ public class GenNativeTable
     out.w(")").nl();
 
     // Stub method always returns 0 for now...  (unless Str)
+    //   TODO: consider matching return type to method's actual (m.ret?)
     String ntype = "Cell ";
     String retv  = "  Cell ret;\n  ret.ival = 0;\n  return ret;";
 
@@ -188,7 +210,13 @@ public class GenNativeTable
     }
     else if ( m.ret.qname().compareTo("sys::Str")==0 )
     {
-      retv  = "  Cell ret;\n  ret.aval = \"\";\n  return ret;";
+      // If this native returns the platform ID, supply the required code
+      if ( isPlatformIdNative )
+        retv  = "  Cell ret;\n  ret.aval = PLATFORM_ID;\n  return ret;";
+
+      // All other string natives return empty string
+      else   
+        retv  = "  Cell ret;\n  ret.aval = \"\";\n  return ret;";
     }
 
     out.w(ntype).w(toFuncName(m)).w("(SedonaVM* vm, Cell* params)").nl();
@@ -198,6 +226,10 @@ public class GenNativeTable
     out.w(retv).nl();
 
     out.w("}").nl().nl().nl();
+
+
+    // Return true if we just stubbed doPlatformId()
+    return isPlatformIdNative;
   }
 
 
@@ -426,7 +458,7 @@ public class GenNativeTable
 // Create source file with native method stubs
 ////////////////////////////////////////////////////////////////
 
-  private void genNativeStubFile(NativeKit kit)
+  private boolean genNativeStubFile(NativeKit kit)
     throws IOException
   {
     // Create a new file to put native method stubs into
@@ -443,7 +475,8 @@ public class GenNativeTable
     }
 
     // If no stubs, then don't create file
-    if (stubs.size()==0) return;
+    if (stubs.size()==0) 
+      return false;
 
     // Create the file and write the header
     String nativeFile = kit.kitName + "_native_stubs.c";
@@ -466,12 +499,17 @@ public class GenNativeTable
     nout.w("#include \"sedona.h\"").nl();
     nout.nl();
 
+    // Generate stub methods, noting whether any of them was PLATFORM_ID method
+    boolean gotPlatformIdNative = false;
+
     // Create stub functions
     for (int j=0; j<stubs.size(); ++j)
-      stub( nout, (IrMethod)stubs.get(j) );
+      gotPlatformIdNative = stub( nout, (IrMethod)stubs.get(j) ) || gotPlatformIdNative;
 
     // Close the file stream
     nout.close();
+
+    return gotPlatformIdNative;
   }
 
 

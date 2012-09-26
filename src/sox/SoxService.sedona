@@ -111,6 +111,8 @@ class SoxService
     datagram.buf = packet.bytes
     openPort(true)
 
+    lastHouseKeeping = Sys.ticks()   // avoid large delta on first app cycle
+
     userService = (UserService)Sys.app.lookupService(UserService.type)
     if (userService == null) SoxService.log.error("Missing UserService")
   }
@@ -422,7 +424,7 @@ class SoxService
     }
 
     // update last house keeping time
-    lastHouseKeeping = Sys.ticks()
+    lastHouseKeeping = now
     return worked
   }
 
